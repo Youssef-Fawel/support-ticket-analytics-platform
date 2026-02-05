@@ -1,5 +1,6 @@
 # 🎫 Support Ticket Analytics Platform
 
+[![CI/CD Pipeline](https://github.com/Youssef-Fawel/support-ticket-analytics-platform/actions/workflows/ci.yml/badge.svg)](https://github.com/Youssef-Fawel/support-ticket-analytics-platform/actions/workflows/ci.yml)
 [![Tests](https://img.shields.io/badge/tests-35%2F35_passing-success)](https://github.com/Youssef-Fawel/support-ticket-analytics-platform)
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue)](https://www.python.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.104-green)](https://fastapi.tiangolo.com/)
