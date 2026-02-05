@@ -46,49 +46,36 @@ class LockService:
         now = datetime.utcnow()
         expires_at = now + timedelta(seconds=self.LOCK_TTL_SECONDS)
 
+        # First, try to insert a new lock (if none exists for this resource)
         try:
-            # Atomic operation: only create/update lock if it doesn't exist or is expired
-            result = await db[self.LOCK_COLLECTION].find_one_and_update(
-                {
-                    "resource_id": resource_id,
-                    "$or": [
-                        {"expires_at": {"$lt": now}},  # Lock is expired
-                        {"resource_id": {"$exists": False}}  # Lock doesn't exist
-                    ]
-                },
-                {
-                    "$set": {
-                        "resource_id": resource_id,
-                        "owner_id": owner_id,
-                        "acquired_at": now,
-                        "expires_at": expires_at
-                    }
-                },
-                upsert=True,
-                return_document=True
-            )
-            
-            # Also try to acquire if no lock exists at all (alternative path)
-            if result is None:
-                result = await db[self.LOCK_COLLECTION].find_one_and_update(
-                    {"resource_id": resource_id, "expires_at": {"$lt": now}},
-                    {
-                        "$set": {
-                            "resource_id": resource_id,
-                            "owner_id": owner_id,
-                            "acquired_at": now,
-                            "expires_at": expires_at
-                        }
-                    },
-                    upsert=False,
-                    return_document=True
-                )
-            
-            return result is not None
-            
+            await db[self.LOCK_COLLECTION].insert_one({
+                "resource_id": resource_id,
+                "owner_id": owner_id,
+                "acquired_at": now,
+                "expires_at": expires_at
+            })
+            return True
         except Exception:
-            # If lock already exists and is not expired, this will fail
-            return False
+            # Lock already exists, try to acquire if it's expired
+            pass
+
+        # If insert failed, try to update an expired lock
+        result = await db[self.LOCK_COLLECTION].find_one_and_update(
+            {
+                "resource_id": resource_id,
+                "expires_at": {"$lt": now}  # Only acquire if expired
+            },
+            {
+                "$set": {
+                    "owner_id": owner_id,
+                    "acquired_at": now,
+                    "expires_at": expires_at
+                }
+            },
+            return_document=True
+        )
+        
+        return result is not None
 
     async def release_lock(self, resource_id: str, owner_id: str) -> bool:
         """
