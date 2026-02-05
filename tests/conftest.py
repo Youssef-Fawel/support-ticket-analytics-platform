@@ -59,6 +59,19 @@ async def db():
     yield database
 
 
+@pytest_asyncio.fixture(scope="function", autouse=True)
+async def ensure_indexes():
+    """
+    Ensure all indexes are created before each test.
+    CRITICAL: This prevents race conditions where distributed lock tests
+    run before the unique index on distributed_locks.resource_id is created.
+    Without this, the atomic insert in acquire_lock() won't work correctly.
+    """
+    from src.db.indexes import create_indexes
+    await create_indexes()
+    yield
+
+
 @pytest.fixture(scope="function", autouse=True)
 def isolate_tests():
     """

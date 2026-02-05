@@ -47,6 +47,7 @@ class LockService:
         expires_at = now + timedelta(seconds=self.LOCK_TTL_SECONDS)
 
         # First, try to insert a new lock (if none exists for this resource)
+        # The unique index on resource_id ensures only ONE insert succeeds
         try:
             await db[self.LOCK_COLLECTION].insert_one({
                 "resource_id": resource_id,
@@ -55,7 +56,13 @@ class LockService:
                 "expires_at": expires_at
             })
             return True
-        except Exception:
+        except Exception as e:
+            # If insert failed due to duplicate key (lock exists), try expired lock
+            # DuplicateKeyError means another process holds the lock
+            from pymongo.errors import DuplicateKeyError
+            if not isinstance(e, DuplicateKeyError):
+                # Unexpected error - re-raise it
+                raise
             # Lock already exists, try to acquire if it's expired
             pass
 
