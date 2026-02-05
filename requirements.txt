@@ -7,4 +7,5 @@ pydantic-settings
 httpx
 pytest
 pytest-asyncio
+pytest-cov
 python-dateutil
