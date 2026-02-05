@@ -118,11 +118,11 @@ jobs:
 
     - name: Test Docker image
       run: |
-        docker-compose up -d
+        docker compose up -d
         sleep 10
-        docker-compose ps
-        docker-compose logs app
-        docker-compose down
+        docker compose ps
+        docker compose logs app
+        docker compose down
 
     - name: Docker build summary
       run: echo "✅ Docker image built successfully"
