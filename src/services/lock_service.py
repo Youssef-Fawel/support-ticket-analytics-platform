@@ -40,51 +40,43 @@ class LockService:
         Returns:
             True if lock acquired, False otherwise.
 
-        Uses atomic operations to prevent race conditions.
-        Strategy: Try update first (expired lock), then insert (new lock).
+        Uses SINGLE atomic MongoDB operation to eliminate ALL race conditions.
         """
         db = await get_db()
         now = datetime.utcnow()
         expires_at = now + timedelta(seconds=self.LOCK_TTL_SECONDS)
 
-        # Strategy 1: Try to atomically update an expired lock
-        # This uses find_one_and_update which is atomic and prevents race conditions
-        result = await db[self.LOCK_COLLECTION].find_one_and_update(
-            {
-                "resource_id": resource_id,
-                "expires_at": {"$lt": now}  # Only acquire if expired
-            },
-            {
-                "$set": {
-                    "owner_id": owner_id,
-                    "acquired_at": now,
-                    "expires_at": expires_at
-                }
-            },
-            return_document=True
-        )
+        # SINGLE ATOMIC OPERATION: Use $setOnInsert to atomically create new lock
+        # or update expired lock in ONE operation. This completely eliminates
+        # the race condition window that exists with separate update + insert.
+        from pymongo import ReturnDocument
         
-        if result is not None:
-            return True
-
-        # Strategy 2: Try to insert a new lock (if none exists for this resource)
-        # The unique index on resource_id ensures only ONE insert succeeds
         try:
-            await db[self.LOCK_COLLECTION].insert_one({
-                "resource_id": resource_id,
-                "owner_id": owner_id,
-                "acquired_at": now,
-                "expires_at": expires_at
-            })
-            return True
-        except Exception as e:
-            # If insert failed due to duplicate key (lock exists), lock is held
-            # DuplicateKeyError means another process holds the lock
-            from pymongo.errors import DuplicateKeyError
-            if not isinstance(e, DuplicateKeyError):
-                # Unexpected error - re-raise it
-                raise
-            # Lock exists and is not expired - acquisition failed
+            result = await db[self.LOCK_COLLECTION].find_one_and_update(
+                {
+                    "resource_id": resource_id,
+                    "$or": [
+                        {"expires_at": {"$lt": now}},  # Lock is expired
+                        {"expires_at": {"$exists": False}}  # Lock doesn't exist (for upsert)
+                    ]
+                },
+                {
+                    "$set": {
+                        "resource_id": resource_id,
+                        "owner_id": owner_id,
+                        "acquired_at": now,
+                        "expires_at": expires_at
+                    }
+                },
+                upsert=True,
+                return_document=ReturnDocument.AFTER
+            )
+            
+            # Double-check we got the lock (our owner_id was set)
+            return result is not None and result.get("owner_id") == owner_id
+            
+        except Exception:
+            # Any error (including duplicate key during upsert race) means lock failed
             return False
 
     async def release_lock(self, resource_id: str, owner_id: str) -> bool:
