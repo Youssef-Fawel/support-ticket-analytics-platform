@@ -111,6 +111,7 @@ async def health_check():
     - 503 Service Unavailable if any dependency is down
     """
     import httpx
+    from src.core.config import settings
     
     health_status = {
         "status": "ok",
@@ -131,7 +132,7 @@ async def health_check():
     # Check External API
     try:
         async with httpx.AsyncClient(timeout=5.0) as client:
-            response = await client.get("http://mock-external-api:9000/health")
+            response = await client.get(f"{settings.EXTERNAL_API_URL}/health")
             if response.status_code == 200:
                 health_status["dependencies"]["external_api"] = "healthy"
             else:

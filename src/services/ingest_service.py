@@ -10,11 +10,12 @@ from src.services.lock_service import LockService
 from src.services.rate_limiter import get_rate_limiter
 from src.services.sync_service import SyncService
 from src.core.logging import logger
+from src.core.config import settings
 
 
 class IngestService:
     def __init__(self):
-        self.external_api_url = "http://mock-external-api:9000/external/support-tickets"
+        self.external_api_url = f"{settings.EXTERNAL_API_URL}/external/support-tickets"
         self.classify_service = ClassifyService()
         self.notify_service = NotifyService()
         self.lock_service = LockService()
